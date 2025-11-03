@@ -34,10 +34,17 @@ const deleteUser = catchAsync(async (req, res) => {
   res.status(httpStatus.NO_CONTENT).send();
 });
 
+const updateOwnSettings = catchAsync(async (req, res) => {
+  const allowedFields = pick(req.body, ['settings', 'shortcuts', 'photoURL']);
+  const user = await userService.updateUserById(req.user.id, allowedFields);
+  res.send(user);
+});
+
 module.exports = {
   createUser,
   getUsers,
   getUser,
   updateUser,
   deleteUser,
+  updateOwnSettings,
 };

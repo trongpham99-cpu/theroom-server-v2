@@ -12,7 +12,20 @@ const login = catchAsync(async (req, res) => {
   const { email, password } = req.body;
   const user = await authService.loginUserWithEmailAndPassword(email, password);
   const tokens = await tokenService.generateAuthTokens(user);
-  res.send({ user, tokens });
+  const response = {
+    id: user.id,
+    role: user.role,
+    displayName: user.name,
+    photoURL: user.photoURL,
+    email: user.email,
+    isEmailVerified: user.isEmailVerified,
+    settings: user.settings,
+    shortcuts: user.shortcuts,
+    loginRedirectUrl: (user.settings && user.settings.loginRedirectUrl) || '/',
+    tokens,
+  };
+
+  res.send(response);
 });
 
 const logout = catchAsync(async (req, res) => {

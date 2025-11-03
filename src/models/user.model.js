@@ -44,6 +44,58 @@ const userSchema = mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    photoURL: {
+      type: String,
+      default: '/assets/images/avatars/default-avatar.jpg',
+    },
+    settings: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {
+        customScrollbars: true,
+        direction: 'ltr',
+        layout: {
+          style: 'layout1',
+          config: {
+            mode: 'container',
+            containerWidth: 1120,
+            navbar: {
+              display: true,
+              style: 'style-1',
+              folded: false,
+              position: 'left',
+              open: true,
+            },
+            toolbar: {
+              display: true,
+              style: 'fixed',
+            },
+            footer: {
+              display: true,
+              style: 'fixed',
+            },
+            leftSidePanel: {
+              display: true,
+            },
+            rightSidePanel: {
+              display: true,
+            },
+          },
+        },
+        theme: {
+          main: {
+            palette: {
+              mode: 'light',
+            },
+          },
+        },
+        defaultAuth: ['admin'],
+        loginRedirectUrl: '/',
+      },
+    },
+    shortcuts: {
+      type: [String],
+      default: [],
+    },
   },
   {
     timestamps: true,
