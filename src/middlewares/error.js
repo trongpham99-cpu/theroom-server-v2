@@ -3,6 +3,7 @@ const httpStatus = require('http-status');
 const config = require('../config/config');
 const logger = require('../config/logger');
 const ApiError = require('../utils/ApiError');
+const responseHandler = require('../utils/responseHandler');
 
 const errorConverter = (err, req, res, next) => {
   let error = err;
@@ -25,17 +26,15 @@ const errorHandler = (err, req, res, next) => {
 
   res.locals.errorMessage = err.message;
 
-  const response = {
-    code: statusCode,
-    message,
-    ...(config.env === 'development' && { stack: err.stack }),
-  };
-
   if (config.env === 'development') {
     logger.error(err);
   }
 
-  res.status(statusCode).send(response);
+  if (statusCode >= 400 && statusCode < 500) {
+    return responseHandler.fail(res, statusCode, message, config.env === 'development' ? { stack: err.stack } : null);
+  }
+
+  return responseHandler.error(res, statusCode, message, config.env === 'development' ? err.stack : null);
 };
 
 module.exports = {
