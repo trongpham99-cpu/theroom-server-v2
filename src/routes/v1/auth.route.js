@@ -324,8 +324,6 @@ module.exports = router;
  *                       enum: [user, admin]
  *                     name:
  *                       type: string
- *                     name:
- *                       type: string
  *                     email:
  *                       type: string
  *                       format: email
