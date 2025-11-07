@@ -14,10 +14,10 @@ const routes = require('./routes/v1');
 const { errorConverter, errorHandler } = require('./middlewares/error');
 const ApiError = require('./utils/ApiError');
 
-const invoiceRoutes = require('./routes/v1/invoiceRoute');
-const apartmentRoutes = require('./routes/v1/apartmentRoute');
-const roomRoutes = require('./routes/v1/roomRoute');
-const notificationRoutes = require('./routes/v1/notificationRoute');
+const invoiceRoutes = require('./routes/v1/invoice.route');
+const apartmentRoutes = require('./routes/v1/apartment.route');
+const roomRoutes = require('./routes/v1/room.route');
+const notificationRoutes = require('./routes/v1/notification.route');
 
 const app = express();
 
