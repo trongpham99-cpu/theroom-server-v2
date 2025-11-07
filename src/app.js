@@ -14,6 +14,11 @@ const routes = require('./routes/v1');
 const { errorConverter, errorHandler } = require('./middlewares/error');
 const ApiError = require('./utils/ApiError');
 
+const invoiceRoutes = require('./routes/v1/invoiceRoute');
+const apartmentRoutes = require('./routes/v1/apartmentRoute');
+const roomRoutes = require('./routes/v1/roomRoute');
+const notificationRoutes = require('./routes/v1/notificationRoute');
+
 const app = express();
 
 if (config.env !== 'test') {
@@ -63,5 +68,10 @@ app.use(errorConverter);
 
 // handle error
 app.use(errorHandler);
+
+app.use('/api/v1/invoices', invoiceRoutes);
+app.use('/api/v1/apartments', apartmentRoutes);
+app.use('/api/v1/rooms', roomRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
 
 module.exports = app;
