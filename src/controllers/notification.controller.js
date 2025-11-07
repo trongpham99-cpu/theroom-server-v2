@@ -1,7 +1,7 @@
-const notificationModel = require('../models/notificationModel');
-const roomModel = require('../models/roomModel');
-const customerModel = require('../models/customerModel');
-const apartmentModel = require('../models/apartmentModel');
+const notificationModel = require('../models/notification.model');
+const roomModel = require('../models/room.model');
+const customerModel = require('../models/customer.model');
+const apartmentModel = require('../models/apartment.model');
 
 const { sendTransactionMessage } = require('../services/zalo');
 

@@ -1,4 +1,4 @@
-const Apartment = require('../models/apartmentModel');
+const Apartment = require('../models/apartment.model');
 
 exports.listApartments = async (req, res) => {
     const apartments = await Apartment.find().sort({ createdAt: -1 });

@@ -1,5 +1,5 @@
-const Room = require('../models/roomModel');
-const Customer = require('../models/customerModel');
+const Room = require('../models/room.model');
+const Customer = require('../models/customer.model');
 
 exports.listRooms = async (req, res) => {
     const rooms = await Room.find().sort({ createdAt: -1 });

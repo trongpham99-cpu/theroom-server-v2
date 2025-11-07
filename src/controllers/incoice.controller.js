@@ -1,4 +1,4 @@
-const Invoice = require('../models/invoiceModel');
+const Invoice = require('../models/invoice.model');
 const { fetchSheetData } = require('../services/excel');
 const { sendZNS } = require('../services/zalo');
 
