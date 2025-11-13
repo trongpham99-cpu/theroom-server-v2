@@ -1,8 +1,8 @@
 const Invoice = require('../models/invoice.model');
 const { fetchSheetData } = require('../services/excel.service');
-const { sendZNS } = require('../services/zalo.service');
+//const { sendZNS } = require('../services/zalo.service');
 
-const redisClient = require('../configs/redis');
+//const redisClient = require('../configs/redis');
 
 exports.listInvoices = async (req, res) => {
     const { page = 1, limit = 10, sortBy, sortOrder, search } = req.query;
