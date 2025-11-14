@@ -60,6 +60,14 @@ if (config.env === 'production') {
 // v1 api routes
 app.use('/api/v1', routes);
 
+// Custom routes
+app.use('/api/v1/invoices', invoiceRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
+// app.use('/api/v1/settings', settingRoutes); // TODO: Create setting.route.js first
+app.use('/api/v1/apartments', apartmentRoutes);
+app.use('/api/v1/rooms', roomRoutes);
+// app.use('/api/v1/zalo', zaloRoutes); // TODO: Create zalo.route.js first
+
 // send back a 404 error for any unknown api request
 app.use((req, res, next) => {
   next(new ApiError(httpStatus.NOT_FOUND, 'Not found'));
@@ -70,12 +78,5 @@ app.use(errorConverter);
 
 // handle error
 app.use(errorHandler);
-
-app.use('/api/v1/invoices', invoiceRoutes);
-app.use('/api/v1/notifications', notificationRoutes);
-// app.use('/api/v1/settings', settingRoutes); // TODO: Create setting.route.js first
-app.use('/api/v1/apartments', apartmentRoutes);
-app.use('/api/v1/rooms', roomRoutes);
-// app.use('/api/v1/zalo', zaloRoutes); // TODO: Create zalo.route.js first
 
 module.exports = app;
