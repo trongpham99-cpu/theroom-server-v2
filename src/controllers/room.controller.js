@@ -189,6 +189,75 @@ exports.registerRoom = async (req, res) => {
     }
 };
 
+exports.updateRoom = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { code, apartment_id } = req.body;
+
+        // Check if room exists
+        const room = await Room.findById(id);
+        if (!room) {
+            return res.status(404).json({
+                status: 'fail',
+                message: 'Room not found'
+            });
+        }
+
+        // Validate required fields
+        if (!code) {
+            return res.status(400).json({
+                status: 'fail',
+                message: 'Room code is required'
+            });
+        }
+
+        // If apartment_id is provided, check if it exists
+        if (apartment_id) {
+            const apartment = await Apartment.findById(apartment_id);
+            if (!apartment) {
+                return res.status(404).json({
+                    status: 'fail',
+                    message: 'Apartment not found'
+                });
+            }
+        }
+
+        // Check if new code already exists in the same apartment
+        const targetApartmentId = apartment_id || room.apartment_id;
+        const existingRoom = await Room.findOne({ 
+            code, 
+            apartment_id: targetApartmentId,
+            _id: { $ne: id }
+        });
+        if (existingRoom) {
+            return res.status(400).json({
+                status: 'fail',
+                message: 'Room code already exists in this apartment'
+            });
+        }
+
+        // Update room
+        room.code = code;
+        if (apartment_id) {
+            room.apartment_id = apartment_id;
+        }
+        await room.save();
+
+        return res.status(200).json({
+            status: 'success',
+            message: 'Room updated successfully',
+            data: room
+        });
+    } catch (error) {
+        console.error('Error updating room:', error);
+        return res.status(500).json({
+            status: 'error',
+            message: 'Internal server error',
+            error: error.message
+        });
+    }
+};
+
 exports.deleteRoom = async (req, res) => {
     try {
         const { id } = req.params;
