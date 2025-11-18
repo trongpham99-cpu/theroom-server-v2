@@ -2,21 +2,30 @@
 
 ## 📌 Overview
 
-API để quản lý khách hàng (Customers) trong hệ thống The Room Manager.
+API để quản lý khách hàng (Customers) trong hệ thống The Room Manager. Hệ thống hỗ trợ tạo customer với hoặc không có phòng, và có thể gán/chuyển phòng sau.
 
 **Base URL:** `http://localhost:3321/api/v1`
 
-**Note:** ⚠️ Hiện tại chỉ có endpoint để **tạo customer**. Các endpoints khác (GET, UPDATE, DELETE) sẽ được bổ sung sau.
+**Key Features:**
+- ✅ Tạo customer với phòng ngay (one-step)
+- ✅ Tạo customer chưa có phòng, gán sau (two-step)
+- ✅ Chuyển customer từ phòng này sang phòng khác
+- ✅ Full CRUD operations
+- ✅ Search, filter, pagination
 
 ---
 
 ## 📋 Table of Contents
 
 - [Customer Model Schema](#-customer-model-schema)
-- [Create Customer](#-create-customer)
+- [List Customers](#1%EF%B8%8F⃣-get-apiv1customers)
+- [Get Customer by ID](#2%EF%B8%8F⃣-get-apiv1customersid)
+- [Create Customer](#3%EF%B8%8F⃣-post-apiv1customers)
+- [Update Customer](#4%EF%B8%8F⃣-patch-apiv1customersid)
+- [Assign Customer to Room](#5%EF%B8%8F⃣-post-apiv1customersidassign-room)
+- [Delete Customer](#6%EF%B8%8F⃣-delete-apiv1customersid)
 - [React Integration Examples](#-react-integration-examples)
-- [Use Cases & Best Practices](#-use-cases--best-practices)
-- [Planned Features](#-planned-features)
+- [Use Cases & Best Practices](#-use-cases--scenarios)
 
 ---
 
@@ -26,15 +35,15 @@ API để quản lý khách hàng (Customers) trong hệ thống The Room Manage
 
 ```typescript
 interface Customer {
-  _id: string;              // MongoDB ObjectId
-  uuid: string;             // Unique identifier (có thể là Zalo UUID)
-  name: string;             // Tên khách hàng (required)
-  phone: string;            // Số điện thoại
-  dob: Date;                // Ngày sinh
-  room_id: string;          // Room ID (ObjectId, required)
-  apartment_id: string;     // Apartment ID (ObjectId, required)
-  createdAt: Date;          // Thời gian tạo
-  updatedAt: Date;          // Thời gian cập nhật
+  _id: string;                    // MongoDB ObjectId
+  uuid: string;                   // Unique identifier (Zalo UUID hoặc unique string)
+  name: string;                   // Tên khách hàng (required)
+  phone: string;                  // Số điện thoại
+  dob: Date;                      // Ngày sinh
+  room_id: string | null;         // Room ID (optional - có thể null)
+  apartment_id: string | null;   // Apartment ID (optional - auto-set từ room)
+  createdAt: Date;                // Thời gian tạo
+  updatedAt: Date;                // Thời gian cập nhật
 }
 ```
 
@@ -44,78 +53,344 @@ interface Customer {
 |-------|------|----------|-------------|
 | `uuid` | String | ✅ Yes | Unique identifier (thường là Zalo user UUID) |
 | `name` | String | ✅ Yes | Tên đầy đủ của khách hàng |
-| `phone` | String | ⚪ Optional | Số điện thoại (format: "0901234567") |
+| `phone` | String | ⚪ Optional | Số điện thoại |
 | `dob` | Date/String | ⚪ Optional | Ngày sinh (ISO format: "1990-05-15") |
-| `room_id` | String | ✅ Yes | ID của phòng (MongoDB ObjectId) |
-| `apartment_id` | String | ✅ Yes | ID của tòa nhà (MongoDB ObjectId) |
+| `room_id` | String | ⚪ Optional | ID của phòng (có thể null - gán sau) |
+| `apartment_id` | String | ⚪ Optional | ID của tòa nhà (tự động lấy từ room nếu có) |
+
+**Important Notes:**
+- `room_id` và `apartment_id` là **optional** - customer có thể tồn tại mà không có phòng
+- Nếu chỉ cung cấp `room_id`, hệ thống tự động lấy `apartment_id` từ room
+- Nếu cung cấp cả 2, hệ thống sẽ validate room thuộc apartment đó
 
 ---
 
-# 🆕 Create Customer
+# 1️⃣ GET /api/v1/customers
 
-## POST /api/v1/rooms/register
+Lấy danh sách customers với pagination, search và filter.
 
-Đăng ký khách hàng vào phòng (tạo customer record mới).
-
-**Note:** Endpoint này nằm trong `/rooms/register` vì nó liên quan đến việc đăng ký phòng cho khách hàng.
-
-### Request
+## Request
 
 ```http
-POST /api/v1/rooms/register HTTP/1.1
+GET /api/v1/customers HTTP/1.1
 Host: localhost:3321
 Content-Type: application/json
 ```
 
-**Headers:** Không cần authentication
+**Query Parameters:**
 
-**Body Parameters:**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `uuid` | String | ✅ Yes | Unique identifier (Zalo UUID hoặc unique string) |
-| `name` | String | ✅ Yes | Tên khách hàng |
-| `phone` | String | ✅ Yes | Số điện thoại |
-| `dob` | String | ✅ Yes | Ngày sinh (ISO format: YYYY-MM-DD) |
-| `room_id` | String | ✅ Yes | Room ID (MongoDB ObjectId) |
-| `apartment_id` | String | ✅ Yes | Apartment ID (MongoDB ObjectId) |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `page` | Number | ⚪ Optional | Số trang (default: 1) |
+| `limit` | Number | ⚪ Optional | Số items mỗi trang (default: 10) |
+| `sortBy` | String | ⚪ Optional | Field để sort (VD: "name", "createdAt") |
+| `sortOrder` | String | ⚪ Optional | "asc" hoặc "desc" (default: "desc") |
+| `search` | String | ⚪ Optional | Tìm kiếm theo name hoặc phone |
+| `room_id` | String | ⚪ Optional | Filter theo room ID |
+| `apartment_id` | String | ⚪ Optional | Filter theo apartment ID |
 
 ---
 
-### Request Body Example
+## Request Examples
+
+### Basic List
+```http
+GET /api/v1/customers
+```
+
+### With Pagination
+```http
+GET /api/v1/customers?page=2&limit=20
+```
+
+### With Search
+```http
+GET /api/v1/customers?search=Nguyễn Văn A
+```
+
+### Filter by Room
+```http
+GET /api/v1/customers?room_id=673room001...
+```
+
+### Filter by Apartment
+```http
+GET /api/v1/customers?apartment_id=673apt001...
+```
+
+### Combined
+```http
+GET /api/v1/customers?page=1&limit=10&search=0901234567&room_id=673room001...&sortBy=name&sortOrder=asc
+```
+
+---
+
+## Response Success (200 OK)
 
 ```json
 {
-  "uuid": "zalo_user_12345",
-  "name": "Nguyễn Văn A",
-  "phone": "0901234567",
-  "dob": "1990-05-15",
-  "room_id": "673room001...",
-  "apartment_id": "673abc123def456..."
+  "status": "success",
+  "message": "Customers retrieved successfully",
+  "data": {
+    "rows": [
+      {
+        "_id": "673customer001...",
+        "uuid": "zalo_user_12345",
+        "name": "Nguyễn Văn A",
+        "phone": "0901234567",
+        "dob": "1990-05-15T00:00:00.000Z",
+        "room_id": {
+          "_id": "673room001...",
+          "code": "A101"
+        },
+        "apartment_id": {
+          "_id": "673apt001...",
+          "code": "Building A"
+        },
+        "createdAt": "2025-11-14T10:00:00.000Z",
+        "updatedAt": "2025-11-14T10:00:00.000Z"
+      },
+      {
+        "_id": "673customer002...",
+        "uuid": "zalo_user_67890",
+        "name": "Trần Thị B",
+        "phone": "0907654321",
+        "dob": "1992-08-20T00:00:00.000Z",
+        "room_id": null,
+        "apartment_id": null,
+        "createdAt": "2025-11-14T11:00:00.000Z",
+        "updatedAt": "2025-11-14T11:00:00.000Z"
+      }
+    ],
+    "total": 50,
+    "page": 1,
+    "limit": 10
+  }
+}
+```
+
+**Note:** Customers không có phòng sẽ có `room_id: null` và `apartment_id: null`.
+
+---
+
+## Example Usage (Fetch)
+
+```javascript
+const getCustomers = async (options = {}) => {
+  const {
+    page = 1,
+    limit = 10,
+    sortBy = 'createdAt',
+    sortOrder = 'desc',
+    search = '',
+    room_id = '',
+    apartment_id = ''
+  } = options;
+
+  const params = new URLSearchParams({
+    page: page.toString(),
+    limit: limit.toString(),
+    sortBy,
+    sortOrder,
+    ...(search && { search }),
+    ...(room_id && { room_id }),
+    ...(apartment_id && { apartment_id })
+  });
+
+  try {
+    const response = await fetch(
+      `http://localhost:3321/api/v1/customers?${params}`
+    );
+    const data = await response.json();
+    
+    if (data.status === 'success') {
+      return {
+        customers: data.data.rows,
+        total: data.data.total,
+        page: data.data.page,
+        limit: data.data.limit
+      };
+    }
+  } catch (error) {
+    console.error('Error fetching customers:', error);
+    throw error;
+  }
+};
+
+// Usage
+const { customers, total } = await getCustomers({
+  page: 1,
+  limit: 20,
+  search: 'Nguyễn',
+  room_id: '673room001...'
+});
+```
+
+---
+
+## Example Usage (React Hook)
+
+```javascript
+import { useState, useEffect } from 'react';
+import axios from 'axios';
+
+const useCustomers = (initialFilters = {}) => {
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0
+  });
+  const [filters, setFilters] = useState({
+    search: '',
+    room_id: '',
+    apartment_id: '',
+    sortBy: 'createdAt',
+    sortOrder: 'desc',
+    ...initialFilters
+  });
+
+  const fetchCustomers = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { data } = await axios.get('http://localhost:3321/api/v1/customers', {
+        params: {
+          page: pagination.page,
+          limit: pagination.limit,
+          ...filters
+        }
+      });
+
+      setCustomers(data.data.rows);
+      setPagination(prev => ({
+        ...prev,
+        total: data.data.total
+      }));
+    } catch (err) {
+      setError(err.response?.data?.message || err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCustomers();
+  }, [pagination.page, pagination.limit, filters]);
+
+  const changePage = (newPage) => {
+    setPagination(prev => ({ ...prev, page: newPage }));
+  };
+
+  const updateFilters = (newFilters) => {
+    setFilters(prev => ({ ...prev, ...newFilters }));
+    setPagination(prev => ({ ...prev, page: 1 }));
+  };
+
+  return {
+    customers,
+    loading,
+    error,
+    pagination,
+    filters,
+    changePage,
+    updateFilters,
+    refetch: fetchCustomers
+  };
+};
+
+// Usage
+function CustomerList() {
+  const {
+    customers,
+    loading,
+    error,
+    pagination,
+    filters,
+    changePage,
+    updateFilters
+  } = useCustomers();
+
+  return (
+    <div>
+      {/* Filters */}
+      <input
+        type="text"
+        placeholder="Tìm kiếm..."
+        value={filters.search}
+        onChange={(e) => updateFilters({ search: e.target.value })}
+      />
+
+      {/* List */}
+      {customers.map(customer => (
+        <div key={customer._id}>
+          <h3>{customer.name}</h3>
+          <p>Phone: {customer.phone}</p>
+          <p>
+            Room: {customer.room_id?.code || 'Chưa có phòng'}
+          </p>
+        </div>
+      ))}
+
+      {/* Pagination */}
+      <div>
+        <button onClick={() => changePage(pagination.page - 1)}>
+          Previous
+        </button>
+        <span>Page {pagination.page}</span>
+        <button onClick={() => changePage(pagination.page + 1)}>
+          Next
+        </button>
+      </div>
+    </div>
+  );
 }
 ```
 
 ---
 
-### Response Success (200 OK)
+# 2️⃣ GET /api/v1/customers/:id
 
-⚠️ **Note:** Hiện tại endpoint này **không return response body** khi thành công (bug). Chỉ check HTTP status code 200.
+Lấy chi tiết một customer theo ID.
 
-**Current behavior:** HTTP 200 với empty body
+## Request
 
-**Expected behavior (sẽ fix sau):**
+```http
+GET /api/v1/customers/:id HTTP/1.1
+Host: localhost:3321
+```
+
+**URL Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | String | ✅ Yes | Customer ID (MongoDB ObjectId) |
+
+---
+
+## Response Success (200 OK)
+
 ```json
 {
   "status": "success",
-  "message": "Customer registered successfully",
+  "message": "Customer retrieved successfully",
   "data": {
     "_id": "673customer001...",
     "uuid": "zalo_user_12345",
     "name": "Nguyễn Văn A",
     "phone": "0901234567",
     "dob": "1990-05-15T00:00:00.000Z",
-    "room_id": "673room001...",
-    "apartment_id": "673abc123def456...",
+    "room_id": {
+      "_id": "673room001...",
+      "code": "A101"
+    },
+    "apartment_id": {
+      "_id": "673apt001...",
+      "code": "Building A"
+    },
     "createdAt": "2025-11-14T10:00:00.000Z",
     "updatedAt": "2025-11-14T10:00:00.000Z"
   }
@@ -124,180 +399,236 @@ Content-Type: application/json
 
 ---
 
-### Error Responses
+## Error Responses
 
-#### 400 Bad Request - Missing Required Fields
+### 404 Not Found
 ```json
 {
-  "status": "error",
-  "message": "Missing required fields"
+  "status": "fail",
+  "message": "Customer not found"
 }
 ```
 
-#### 400 Bad Request - UUID Already Exists
+---
+
+## Example Usage
+
+```javascript
+const getCustomerById = async (customerId) => {
+  try {
+    const { data } = await axios.get(
+      `http://localhost:3321/api/v1/customers/${customerId}`
+    );
+    return data.data;
+  } catch (error) {
+    if (error.response?.status === 404) {
+      throw new Error('Không tìm thấy khách hàng');
+    }
+    throw error;
+  }
+};
+```
+
+---
+
+# 3️⃣ POST /api/v1/customers
+
+Tạo customer mới. **Room assignment là optional** - có thể tạo customer chưa có phòng và gán sau.
+
+## Request
+
+```http
+POST /api/v1/customers HTTP/1.1
+Host: localhost:3321
+Content-Type: application/json
+```
+
+**Body Parameters:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `uuid` | String | ✅ Yes | Unique identifier |
+| `name` | String | ✅ Yes | Tên khách hàng |
+| `phone` | String | ⚪ Optional | Số điện thoại |
+| `dob` | String | ⚪ Optional | Ngày sinh (ISO format: YYYY-MM-DD) |
+| `room_id` | String | ⚪ Optional | Room ID (có thể null) |
+| `apartment_id` | String | ⚪ Optional | Apartment ID (tự động lấy từ room nếu không có) |
+
+---
+
+## Request Body Examples
+
+### Example 1: Create with Room (One-step)
 ```json
 {
-  "status": "error",
+  "uuid": "zalo_user_12345",
+  "name": "Nguyễn Văn A",
+  "phone": "0901234567",
+  "dob": "1990-05-15",
+  "room_id": "673room001..."
+}
+```
+
+**Note:** Chỉ cần `room_id`, `apartment_id` sẽ tự động lấy từ room.
+
+### Example 2: Create without Room (Two-step)
+```json
+{
+  "uuid": "zalo_user_67890",
+  "name": "Trần Thị B",
+  "phone": "0907654321",
+  "dob": "1992-08-20"
+}
+```
+
+**Note:** Không có `room_id` - customer được tạo chưa có phòng. Sau đó dùng `POST /customers/:id/assign-room` để gán phòng.
+
+### Example 3: Create with Both Room and Apartment
+```json
+{
+  "uuid": "zalo_user_11111",
+  "name": "Lê Văn C",
+  "phone": "0901111111",
+  "dob": "1988-03-10",
+  "room_id": "673room001...",
+  "apartment_id": "673apt001..."
+}
+```
+
+**Note:** Nếu cung cấp cả 2, hệ thống sẽ validate room thuộc apartment đó.
+
+---
+
+## Response Success (201 Created)
+
+### With Room Assigned
+```json
+{
+  "status": "success",
+  "message": "Customer created and assigned to room successfully",
+  "data": {
+    "_id": "673customer001...",
+    "uuid": "zalo_user_12345",
+    "name": "Nguyễn Văn A",
+    "phone": "0901234567",
+    "dob": "1990-05-15T00:00:00.000Z",
+    "room_id": {
+      "_id": "673room001...",
+      "code": "A101"
+    },
+    "apartment_id": {
+      "_id": "673apt001...",
+      "code": "Building A"
+    },
+    "createdAt": "2025-11-14T10:00:00.000Z",
+    "updatedAt": "2025-11-14T10:00:00.000Z"
+  }
+}
+```
+
+### Without Room
+```json
+{
+  "status": "success",
+  "message": "Customer created successfully (no room assigned yet)",
+  "data": {
+    "_id": "673customer002...",
+    "uuid": "zalo_user_67890",
+    "name": "Trần Thị B",
+    "phone": "0907654321",
+    "dob": "1992-08-20T00:00:00.000Z",
+    "room_id": null,
+    "apartment_id": null,
+    "createdAt": "2025-11-14T11:00:00.000Z",
+    "updatedAt": "2025-11-14T11:00:00.000Z"
+  }
+}
+```
+
+---
+
+## Error Responses
+
+### 400 Bad Request - Missing Required Fields
+```json
+{
+  "status": "fail",
+  "message": "Missing required fields: uuid, name, phone, dob"
+}
+```
+
+### 400 Bad Request - UUID Already Exists
+```json
+{
+  "status": "fail",
   "message": "Customer with this UUID already exists"
 }
 ```
 
-#### 500 Internal Server Error
+### 404 Not Found - Room Not Found
 ```json
 {
-  "status": "error",
-  "message": "An error occurred while processing your request.",
-  "error": "Error details..."
+  "status": "fail",
+  "message": "Room not found"
+}
+```
+
+### 400 Bad Request - Room Not in Apartment
+```json
+{
+  "status": "fail",
+  "message": "Room does not belong to the specified apartment"
 }
 ```
 
 ---
 
-### Example Usage (JavaScript/Fetch)
+## Example Usage (React Form - One-step)
 
 ```javascript
-const registerCustomer = async (customerData) => {
-  try {
-    const response = await fetch('http://localhost:3321/api/v1/rooms/register', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(customerData),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Registration failed');
-    }
-
-    // Note: Response body is empty, check status code only
-    if (response.status === 200) {
-      return { success: true };
-    }
-  } catch (error) {
-    console.error('Error registering customer:', error);
-    throw error;
-  }
-};
-
-// Usage
-await registerCustomer({
-  uuid: 'zalo_user_12345',
-  name: 'Nguyễn Văn A',
-  phone: '0901234567',
-  dob: '1990-05-15',
-  room_id: '673room001...',
-  apartment_id: '673abc123def456...'
-});
-```
-
----
-
-### Example Usage (Axios)
-
-```javascript
-import axios from 'axios';
-
-const registerCustomer = async (customerData) => {
-  try {
-    const response = await axios.post(
-      'http://localhost:3321/api/v1/rooms/register',
-      customerData
-    );
-    
-    // Note: Response body is empty, but status 200 means success
-    return { success: true };
-  } catch (error) {
-    if (error.response) {
-      throw new Error(error.response.data.message);
-    }
-    throw error;
-  }
-};
-```
-
----
-
-### Example Usage (React Hook)
-
-```javascript
-import { useState } from 'react';
-import axios from 'axios';
-
-const useRegisterCustomer = () => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  const registerCustomer = async (customerData) => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      await axios.post(
-        'http://localhost:3321/api/v1/rooms/register',
-        customerData
-      );
-      return { success: true };
-    } catch (err) {
-      const errorMessage = err.response?.data?.message || err.message;
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return { registerCustomer, loading, error };
-};
-
-// Usage in component
-function CustomerRegistrationForm() {
-  const { registerCustomer, loading, error } = useRegisterCustomer();
+function CreateCustomerWithRoomForm() {
   const [formData, setFormData] = useState({
-    uuid: '',
+    uuid: `user_${Date.now()}`,
     name: '',
     phone: '',
     dob: '',
     room_id: '',
     apartment_id: ''
   });
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+    setLoading(true);
+
     try {
-      await registerCustomer(formData);
-      alert('Đăng ký thành công!');
+      const { data } = await axios.post(
+        'http://localhost:3321/api/v1/customers',
+        {
+          uuid: formData.uuid,
+          name: formData.name,
+          phone: formData.phone,
+          dob: formData.dob,
+          room_id: formData.room_id  // Gán phòng ngay
+        }
+      );
+      
+      alert('Tạo khách hàng và gán phòng thành công!');
       // Reset form
-      setFormData({
-        uuid: '',
-        name: '',
-        phone: '',
-        dob: '',
-        room_id: '',
-        apartment_id: ''
-      });
     } catch (error) {
-      alert('Lỗi: ' + error.message);
+      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <form onSubmit={handleSubmit}>
-      <h2>Đăng ký khách hàng</h2>
+      <h2>Tạo khách hàng mới</h2>
       
       <input
         type="text"
-        placeholder="UUID (Zalo user ID)"
-        value={formData.uuid}
-        onChange={(e) => setFormData({...formData, uuid: e.target.value})}
-        required
-      />
-
-      <input
-        type="text"
-        placeholder="Họ tên"
+        placeholder="Họ tên *"
         value={formData.name}
         onChange={(e) => setFormData({...formData, name: e.target.value})}
         required
@@ -308,14 +639,12 @@ function CustomerRegistrationForm() {
         placeholder="Số điện thoại"
         value={formData.phone}
         onChange={(e) => setFormData({...formData, phone: e.target.value})}
-        required
       />
 
       <input
         type="date"
         value={formData.dob}
         onChange={(e) => setFormData({...formData, dob: e.target.value})}
-        required
       />
 
       <ApartmentSelect
@@ -323,7 +652,7 @@ function CustomerRegistrationForm() {
         onChange={(val) => setFormData({
           ...formData,
           apartment_id: val,
-          room_id: '' // Reset room when apartment changes
+          room_id: ''  // Reset room
         })}
       />
 
@@ -333,10 +662,8 @@ function CustomerRegistrationForm() {
         onChange={(val) => setFormData({...formData, room_id: val})}
       />
 
-      {error && <p className="error">{error}</p>}
-
-      <button type="submit" disabled={loading}>
-        {loading ? 'Đang xử lý...' : 'Đăng ký'}
+      <button type="submit" disabled={loading || !formData.room_id}>
+        {loading ? 'Đang tạo...' : 'Tạo và gán phòng'}
       </button>
     </form>
   );
@@ -345,9 +672,429 @@ function CustomerRegistrationForm() {
 
 ---
 
-# 🔧 Complete Integration Example
+## Example Usage (React Form - Two-step)
 
-## Service Layer
+```javascript
+function CreateCustomerTwoStepForm() {
+  const [step, setStep] = useState(1);
+  const [formData, setFormData] = useState({
+    uuid: `user_${Date.now()}`,
+    name: '',
+    phone: '',
+    dob: ''
+  });
+  const [createdCustomer, setCreatedCustomer] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  // Step 1: Create customer
+  const handleCreateCustomer = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const { data } = await axios.post(
+        'http://localhost:3321/api/v1/customers',
+        formData  // Không có room_id
+      );
+      
+      setCreatedCustomer(data.data);
+      setStep(2);  // Chuyển sang step 2
+      alert('Tạo khách hàng thành công! Giờ gán phòng.');
+    } catch (error) {
+      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 2: Assign room
+  const handleAssignRoom = async (roomId) => {
+    setLoading(true);
+
+    try {
+      await axios.post(
+        `http://localhost:3321/api/v1/customers/${createdCustomer._id}/assign-room`,
+        { room_id: roomId }
+      );
+      
+      alert('Gán phòng thành công!');
+      // Reset hoặc redirect
+    } catch (error) {
+      alert('Lỗi: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      {step === 1 && (
+        <form onSubmit={handleCreateCustomer}>
+          <h2>Bước 1: Tạo khách hàng</h2>
+          
+          <input
+            type="text"
+            placeholder="Họ tên *"
+            value={formData.name}
+            onChange={(e) => setFormData({...formData, name: e.target.value})}
+            required
+          />
+
+          <input
+            type="tel"
+            placeholder="Số điện thoại"
+            value={formData.phone}
+            onChange={(e) => setFormData({...formData, phone: e.target.value})}
+          />
+
+          <input
+            type="date"
+            value={formData.dob}
+            onChange={(e) => setFormData({...formData, dob: e.target.value})}
+          />
+
+          <button type="submit" disabled={loading}>
+            {loading ? 'Đang tạo...' : 'Tạo khách hàng'}
+          </button>
+        </form>
+      )}
+
+      {step === 2 && createdCustomer && (
+        <div>
+          <h2>Bước 2: Gán phòng cho {createdCustomer.name}</h2>
+          
+          <RoomSelector onSelect={handleAssignRoom} />
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+# 4️⃣ PATCH /api/v1/customers/:id
+
+Cập nhật thông tin customer (name, phone, dob). Để gán/chuyển phòng, dùng endpoint `assign-room` riêng.
+
+## Request
+
+```http
+PATCH /api/v1/customers/:id HTTP/1.1
+Host: localhost:3321
+Content-Type: application/json
+```
+
+**Body Parameters:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | String | ⚪ Optional | Tên khách hàng |
+| `phone` | String | ⚪ Optional | Số điện thoại |
+| `dob` | String | ⚪ Optional | Ngày sinh |
+| `room_id` | String | ⚪ Optional | Room ID (có thể update, nhưng nên dùng assign-room) |
+| `apartment_id` | String | ⚪ Optional | Apartment ID (có thể update) |
+
+---
+
+## Request Body Example
+
+```json
+{
+  "name": "Nguyễn Văn A Updated",
+  "phone": "0909999999",
+  "dob": "1990-05-20"
+}
+```
+
+---
+
+## Response Success (200 OK)
+
+```json
+{
+  "status": "success",
+  "message": "Customer updated successfully",
+  "data": {
+    "_id": "673customer001...",
+    "uuid": "zalo_user_12345",
+    "name": "Nguyễn Văn A Updated",
+    "phone": "0909999999",
+    "dob": "1990-05-20T00:00:00.000Z",
+    "room_id": {
+      "_id": "673room001...",
+      "code": "A101"
+    },
+    "apartment_id": {
+      "_id": "673apt001...",
+      "code": "Building A"
+    }
+  }
+}
+```
+
+---
+
+## Example Usage
+
+```javascript
+const updateCustomer = async (customerId, updates) => {
+  try {
+    const { data } = await axios.patch(
+      `http://localhost:3321/api/v1/customers/${customerId}`,
+      updates
+    );
+    return data.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.message || error.message);
+  }
+};
+
+// Usage
+await updateCustomer('customer_id', {
+  name: 'New Name',
+  phone: '0909999999'
+});
+```
+
+---
+
+# 5️⃣ POST /api/v1/customers/:id/assign-room
+
+**Gán hoặc chuyển customer vào phòng.** Endpoint này rõ ràng hơn và UX tốt hơn so với dùng PATCH.
+
+## Request
+
+```http
+POST /api/v1/customers/:id/assign-room HTTP/1.1
+Host: localhost:3321
+Content-Type: application/json
+```
+
+**URL Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | String | ✅ Yes | Customer ID |
+
+**Body Parameters:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `room_id` | String | ✅ Yes | Room ID để gán |
+
+---
+
+## Request Body Example
+
+```json
+{
+  "room_id": "673room001..."
+}
+```
+
+---
+
+## Response Success (200 OK)
+
+### Assign to New Room
+```json
+{
+  "status": "success",
+  "message": "Customer assigned to room A101 successfully",
+  "data": {
+    "_id": "673customer001...",
+    "uuid": "zalo_user_12345",
+    "name": "Nguyễn Văn A",
+    "room_id": {
+      "_id": "673room001...",
+      "code": "A101"
+    },
+    "apartment_id": {
+      "_id": "673apt001...",
+      "code": "Building A"
+    }
+  }
+}
+```
+
+### Move to Different Room
+```json
+{
+  "status": "success",
+  "message": "Customer moved to room B202 successfully",
+  "data": {
+    "_id": "673customer001...",
+    "room_id": {
+      "_id": "673room002...",
+      "code": "B202"
+    },
+    "apartment_id": {
+      "_id": "673apt002...",
+      "code": "Building B"
+    }
+  }
+}
+```
+
+---
+
+## Error Responses
+
+### 400 Bad Request - Missing room_id
+```json
+{
+  "status": "fail",
+  "message": "room_id is required"
+}
+```
+
+### 404 Not Found - Customer Not Found
+```json
+{
+  "status": "fail",
+  "message": "Customer not found"
+}
+```
+
+### 404 Not Found - Room Not Found
+```json
+{
+  "status": "fail",
+  "message": "Room not found"
+}
+```
+
+---
+
+## Example Usage (React Component)
+
+```javascript
+function AssignRoomToCustomer({ customer, onSuccess }) {
+  const [roomId, setRoomId] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleAssign = async () => {
+    if (!roomId) {
+      setError('Vui lòng chọn phòng');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { data } = await axios.post(
+        `http://localhost:3321/api/v1/customers/${customer._id}/assign-room`,
+        { room_id: roomId }
+      );
+      
+      alert(data.message);
+      onSuccess?.(data.data);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="assign-room">
+      <h3>
+        {customer.room_id 
+          ? `Chuyển ${customer.name} sang phòng khác`
+          : `Gán phòng cho ${customer.name}`
+        }
+      </h3>
+
+      {customer.room_id && (
+        <p>Phòng hiện tại: {customer.room_id.code}</p>
+      )}
+
+      <RoomSelect
+        value={roomId}
+        onChange={setRoomId}
+        excludeRoomId={customer.room_id?._id}  // Exclude current room
+      />
+
+      {error && <p className="error">{error}</p>}
+
+      <button onClick={handleAssign} disabled={loading || !roomId}>
+        {loading 
+          ? 'Đang xử lý...' 
+          : customer.room_id 
+            ? 'Chuyển phòng' 
+            : 'Gán phòng'
+        }
+      </button>
+    </div>
+  );
+}
+```
+
+---
+
+# 6️⃣ DELETE /api/v1/customers/:id
+
+Xóa customer.
+
+## Request
+
+```http
+DELETE /api/v1/customers/:id HTTP/1.1
+Host: localhost:3321
+```
+
+**URL Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | String | ✅ Yes | Customer ID |
+
+---
+
+## Response Success (200 OK)
+
+```json
+{
+  "status": "success",
+  "message": "Customer deleted successfully",
+  "data": {
+    "deleted_id": "673customer001...",
+    "deleted_name": "Nguyễn Văn A"
+  }
+}
+```
+
+---
+
+## Example Usage
+
+```javascript
+const deleteCustomer = async (customerId) => {
+  if (!window.confirm('Bạn chắc chắn muốn xóa khách hàng này?')) {
+    return;
+  }
+
+  try {
+    const { data } = await axios.delete(
+      `http://localhost:3321/api/v1/customers/${customerId}`
+    );
+    alert('Xóa thành công!');
+    return true;
+  } catch (error) {
+    alert('Lỗi: ' + (error.response?.data?.message || error.message));
+    return false;
+  }
+};
+```
+
+---
+
+# 🔧 React Integration Examples
+
+## Complete Service Layer
 
 ```javascript
 // services/customerService.js
@@ -356,409 +1103,218 @@ import axios from 'axios';
 const API_BASE = 'http://localhost:3321/api/v1';
 
 export const customerService = {
-  // Register customer (create)
-  register: async (customerData) => {
-    const response = await axios.post(
-      `${API_BASE}/rooms/register`,
-      customerData
-    );
-    // Note: Response body is empty, status 200 = success
-    return { success: true };
+  // List customers
+  getAll: async (options = {}) => {
+    const { data } = await axios.get(`${API_BASE}/customers`, {
+      params: {
+        page: options.page || 1,
+        limit: options.limit || 10,
+        sortBy: options.sortBy || 'createdAt',
+        sortOrder: options.sortOrder || 'desc',
+        ...(options.search && { search: options.search }),
+        ...(options.room_id && { room_id: options.room_id }),
+        ...(options.apartment_id && { apartment_id: options.apartment_id })
+      }
+    });
+    return {
+      customers: data.data.rows,
+      total: data.data.total,
+      page: data.data.page,
+      limit: data.data.limit
+    };
   },
 
-  // TODO: Will be added later
-  // getAll: async () => { ... },
-  // getById: async (id) => { ... },
-  // update: async (id, data) => { ... },
-  // delete: async (id) => { ... },
+  // Get by ID
+  getById: async (id) => {
+    const { data } = await axios.get(`${API_BASE}/customers/${id}`);
+    return data.data;
+  },
+
+  // Create
+  create: async (customerData) => {
+    const { data } = await axios.post(`${API_BASE}/customers`, customerData);
+    return data.data;
+  },
+
+  // Update
+  update: async (id, updates) => {
+    const { data } = await axios.patch(`${API_BASE}/customers/${id}`, updates);
+    return data.data;
+  },
+
+  // Assign room
+  assignRoom: async (id, roomId) => {
+    const { data } = await axios.post(
+      `${API_BASE}/customers/${id}/assign-room`,
+      { room_id: roomId }
+    );
+    return data.data;
+  },
+
+  // Delete
+  delete: async (id) => {
+    const { data } = await axios.delete(`${API_BASE}/customers/${id}`);
+    return data.data;
+  }
 };
 ```
 
 ---
 
-## React Context
+## Complete Customer Management Component
 
 ```javascript
-// contexts/CustomerContext.js
-import { createContext, useContext, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { customerService } from '../services';
 
-const CustomerContext = createContext();
-
-export const CustomerProvider = ({ children }) => {
+function CustomerManagement() {
+  const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });
+  const [filters, setFilters] = useState({ search: '', room_id: '' });
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [showAssignRoom, setShowAssignRoom] = useState(false);
 
-  const registerCustomer = async (customerData) => {
+  useEffect(() => {
+    loadCustomers();
+  }, [pagination.page, filters]);
+
+  const loadCustomers = async () => {
     setLoading(true);
-    setError(null);
-
     try {
-      await customerService.register(customerData);
-      return { success: true };
-    } catch (err) {
-      const errorMessage = err.response?.data?.message || err.message;
-      setError(errorMessage);
-      throw new Error(errorMessage);
+      const result = await customerService.getAll({
+        page: pagination.page,
+        limit: pagination.limit,
+        ...filters
+      });
+      setCustomers(result.customers);
+      setPagination(prev => ({ ...prev, total: result.total }));
+    } catch (error) {
+      alert('Lỗi: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <CustomerContext.Provider
-      value={{
-        registerCustomer,
-        loading,
-        error,
-      }}
-    >
-      {children}
-    </CustomerContext.Provider>
-  );
-};
-
-export const useCustomer = () => {
-  const context = useContext(CustomerContext);
-  if (!context) {
-    throw new Error('useCustomer must be used within CustomerProvider');
-  }
-  return context;
-};
-```
-
----
-
-## Complete Registration Form Component
-
-```javascript
-import { useState } from 'react';
-import { useCustomer } from '../contexts/CustomerContext';
-import { useApartments, useRooms } from '../hooks';
-
-function CustomerRegistrationForm() {
-  const { registerCustomer, loading, error } = useCustomer();
-  const { apartments } = useApartments();
-  const { rooms, getRoomsByApartment } = useRooms();
-
-  const [formData, setFormData] = useState({
-    uuid: `user_${Date.now()}`, // Auto-generate UUID
-    name: '',
-    phone: '',
-    dob: '',
-    apartment_id: '',
-    room_id: ''
-  });
-
-  const [errors, setErrors] = useState({});
-
-  // Get rooms for selected apartment
-  const availableRooms = formData.apartment_id
-    ? getRoomsByApartment(formData.apartment_id)
-    : [];
-
-  const validate = () => {
-    const newErrors = {};
-
-    if (!formData.name.trim()) {
-      newErrors.name = 'Vui lòng nhập họ tên';
-    }
-
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'Vui lòng nhập số điện thoại';
-    } else if (!/^[0-9]{10,11}$/.test(formData.phone)) {
-      newErrors.phone = 'Số điện thoại không hợp lệ';
-    }
-
-    if (!formData.dob) {
-      newErrors.dob = 'Vui lòng chọn ngày sinh';
-    } else {
-      const dob = new Date(formData.dob);
-      const today = new Date();
-      if (dob > today) {
-        newErrors.dob = 'Ngày sinh không thể trong tương lai';
-      }
-    }
-
-    if (!formData.apartment_id) {
-      newErrors.apartment_id = 'Vui lòng chọn tòa nhà';
-    }
-
-    if (!formData.room_id) {
-      newErrors.room_id = 'Vui lòng chọn phòng';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  const handleAssignRoom = (customer) => {
+    setSelectedCustomer(customer);
+    setShowAssignRoom(true);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!validate()) {
-      return;
-    }
-
+  const handleRoomAssigned = async (roomId) => {
     try {
-      await registerCustomer(formData);
-      alert('Đăng ký khách hàng thành công!');
-      
-      // Reset form
-      setFormData({
-        uuid: `user_${Date.now()}`,
-        name: '',
-        phone: '',
-        dob: '',
-        apartment_id: '',
-        room_id: ''
-      });
-      setErrors({});
+      await customerService.assignRoom(selectedCustomer._id, roomId);
+      alert('Gán phòng thành công!');
+      setShowAssignRoom(false);
+      loadCustomers();
     } catch (error) {
       alert('Lỗi: ' + error.message);
     }
   };
 
-  const handleApartmentChange = (apartmentId) => {
-    setFormData({
-      ...formData,
-      apartment_id: apartmentId,
-      room_id: '' // Reset room
-    });
-  };
-
   return (
-    <div className="customer-registration">
-      <h2>Đăng ký khách hàng mới</h2>
+    <div className="customer-management">
+      <h1>Quản lý Khách hàng</h1>
 
-      <form onSubmit={handleSubmit}>
-        {/* UUID (Auto-generated, hidden) */}
-        <input type="hidden" value={formData.uuid} />
+      {/* Filters */}
+      <div className="filters">
+        <input
+          type="text"
+          placeholder="Tìm kiếm..."
+          value={filters.search}
+          onChange={(e) => setFilters({...filters, search: e.target.value})}
+        />
+      </div>
 
-        {/* Name */}
-        <div className="form-group">
-          <label>Họ tên *</label>
-          <input
-            type="text"
-            value={formData.name}
-            onChange={(e) => setFormData({...formData, name: e.target.value})}
-            placeholder="Nguyễn Văn A"
-            className={errors.name ? 'error' : ''}
-          />
-          {errors.name && <span className="error-text">{errors.name}</span>}
-        </div>
+      {/* List */}
+      <table>
+        <thead>
+          <tr>
+            <th>Tên</th>
+            <th>SĐT</th>
+            <th>Phòng</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {customers.map(customer => (
+            <tr key={customer._id}>
+              <td>{customer.name}</td>
+              <td>{customer.phone}</td>
+              <td>
+                {customer.room_id ? (
+                  <span>{customer.room_id.code}</span>
+                ) : (
+                  <span className="no-room">Chưa có phòng</span>
+                )}
+              </td>
+              <td>
+                {!customer.room_id && (
+                  <button onClick={() => handleAssignRoom(customer)}>
+                    Gán phòng
+                  </button>
+                )}
+                {customer.room_id && (
+                  <button onClick={() => handleAssignRoom(customer)}>
+                    Đổi phòng
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
-        {/* Phone */}
-        <div className="form-group">
-          <label>Số điện thoại *</label>
-          <input
-            type="tel"
-            value={formData.phone}
-            onChange={(e) => setFormData({...formData, phone: e.target.value})}
-            placeholder="0901234567"
-            className={errors.phone ? 'error' : ''}
-          />
-          {errors.phone && <span className="error-text">{errors.phone}</span>}
-        </div>
+      {/* Assign Room Modal */}
+      {showAssignRoom && selectedCustomer && (
+        <AssignRoomModal
+          customer={selectedCustomer}
+          onAssign={handleRoomAssigned}
+          onClose={() => setShowAssignRoom(false)}
+        />
+      )}
 
-        {/* Date of Birth */}
-        <div className="form-group">
-          <label>Ngày sinh *</label>
-          <input
-            type="date"
-            value={formData.dob}
-            onChange={(e) => setFormData({...formData, dob: e.target.value})}
-            max={new Date().toISOString().split('T')[0]}
-            className={errors.dob ? 'error' : ''}
-          />
-          {errors.dob && <span className="error-text">{errors.dob}</span>}
-        </div>
-
-        {/* Apartment */}
-        <div className="form-group">
-          <label>Tòa nhà *</label>
-          <select
-            value={formData.apartment_id}
-            onChange={(e) => handleApartmentChange(e.target.value)}
-            className={errors.apartment_id ? 'error' : ''}
-          >
-            <option value="">-- Chọn tòa nhà --</option>
-            {apartments.map(apt => (
-              <option key={apt._id} value={apt._id}>
-                {apt.code}
-              </option>
-            ))}
-          </select>
-          {errors.apartment_id && (
-            <span className="error-text">{errors.apartment_id}</span>
-          )}
-        </div>
-
-        {/* Room */}
-        <div className="form-group">
-          <label>Phòng *</label>
-          <select
-            value={formData.room_id}
-            onChange={(e) => setFormData({...formData, room_id: e.target.value})}
-            disabled={!formData.apartment_id}
-            className={errors.room_id ? 'error' : ''}
-          >
-            <option value="">
-              {formData.apartment_id ? '-- Chọn phòng --' : '-- Chọn tòa nhà trước --'}
-            </option>
-            {availableRooms.map(room => (
-              <option key={room._id} value={room._id}>
-                {room.code}
-              </option>
-            ))}
-          </select>
-          {errors.room_id && (
-            <span className="error-text">{errors.room_id}</span>
-          )}
-        </div>
-
-        {/* Error Message */}
-        {error && (
-          <div className="alert error">
-            {error}
-          </div>
-        )}
-
-        {/* Submit Button */}
+      {/* Pagination */}
+      <div className="pagination">
         <button
-          type="submit"
-          disabled={loading}
-          className="btn-primary"
+          onClick={() => setPagination({...pagination, page: pagination.page - 1})}
+          disabled={pagination.page === 1}
         >
-          {loading ? 'Đang xử lý...' : 'Đăng ký khách hàng'}
+          Previous
         </button>
-      </form>
+        <span>Page {pagination.page}</span>
+        <button
+          onClick={() => setPagination({...pagination, page: pagination.page + 1})}
+          disabled={pagination.page >= Math.ceil(pagination.total / pagination.limit)}
+        >
+          Next
+        </button>
+      </div>
     </div>
   );
 }
-
-export default CustomerRegistrationForm;
 ```
 
 ---
 
 # 🎯 Use Cases & Scenarios
 
-## Use Case 1: Zalo Integration - Register from Zalo Chat
+## Use Case 1: Create Customer with Room (One-step)
+
+**Scenario:** Khách hàng mới đã biết phòng sẽ ở.
 
 ```javascript
-const registerFromZalo = async (zaloUser, roomId, apartmentId) => {
+const createCustomerWithRoom = async (customerData, roomId) => {
   try {
-    const customerData = {
-      uuid: zaloUser.id, // Zalo user ID
-      name: zaloUser.name || 'Khách hàng',
-      phone: zaloUser.phone || '',
-      dob: zaloUser.dob || '1990-01-01',
-      room_id: roomId,
-      apartment_id: apartmentId
-    };
-
-    await customerService.register(customerData);
-    console.log('Customer registered from Zalo');
+    const customer = await customerService.create({
+      ...customerData,
+      room_id: roomId  // Gán phòng ngay
+    });
+    
+    console.log(`Customer ${customer.name} created and assigned to room ${customer.room_id.code}`);
+    return customer;
   } catch (error) {
-    console.error('Failed to register from Zalo:', error);
-  }
-};
-```
-
----
-
-## Use Case 2: Bulk Registration
-
-```javascript
-const bulkRegisterCustomers = async (customers) => {
-  const results = {
-    success: [],
-    failed: []
-  };
-
-  for (const customer of customers) {
-    try {
-      await customerService.register(customer);
-      results.success.push(customer);
-    } catch (error) {
-      results.failed.push({
-        customer,
-        error: error.message
-      });
-    }
-  }
-
-  return results;
-};
-
-// Usage
-const customers = [
-  {
-    uuid: 'user_1',
-    name: 'Nguyễn Văn A',
-    phone: '0901234567',
-    dob: '1990-05-15',
-    room_id: 'room1_id',
-    apartment_id: 'apt1_id'
-  },
-  {
-    uuid: 'user_2',
-    name: 'Trần Thị B',
-    phone: '0907654321',
-    dob: '1992-08-20',
-    room_id: 'room2_id',
-    apartment_id: 'apt1_id'
-  }
-];
-
-const results = await bulkRegisterCustomers(customers);
-console.log(`Success: ${results.success.length}, Failed: ${results.failed.length}`);
-```
-
----
-
-## Use Case 3: Registration with Validation
-
-```javascript
-const validateAndRegister = async (customerData) => {
-  // Client-side validation
-  const errors = {};
-
-  if (!customerData.name?.trim()) {
-    errors.name = 'Tên không được để trống';
-  }
-
-  if (!customerData.phone?.trim()) {
-    errors.phone = 'Số điện thoại không được để trống';
-  } else if (!/^[0-9]{10,11}$/.test(customerData.phone)) {
-    errors.phone = 'Số điện thoại không hợp lệ (10-11 số)';
-  }
-
-  if (!customerData.dob) {
-    errors.dob = 'Ngày sinh không được để trống';
-  }
-
-  if (!customerData.room_id) {
-    errors.room_id = 'Phải chọn phòng';
-  }
-
-  if (!customerData.apartment_id) {
-    errors.apartment_id = 'Phải chọn tòa nhà';
-  }
-
-  if (Object.keys(errors).length > 0) {
-    throw new Error(JSON.stringify(errors));
-  }
-
-  // Register
-  try {
-    await customerService.register(customerData);
-    return { success: true };
-  } catch (error) {
-    // Handle server errors
-    if (error.response?.data?.message.includes('already exists')) {
-      throw new Error('UUID đã tồn tại. Vui lòng dùng UUID khác!');
-    }
+    console.error('Error:', error);
     throw error;
   }
 };
@@ -766,209 +1322,324 @@ const validateAndRegister = async (customerData) => {
 
 ---
 
-# ⚠️ Important Notes
+## Use Case 2: Create Customer First, Assign Room Later (Two-step)
 
-## 1. Current Limitations
+**Scenario:** Khách hàng mới chưa biết phòng, sẽ gán sau.
 
-### Available:
-- ✅ **Create customer** - POST /api/v1/rooms/register
+```javascript
+// Step 1: Create customer
+const customer = await customerService.create({
+  uuid: 'user_123',
+  name: 'Nguyễn Văn A',
+  phone: '0901234567',
+  dob: '1990-05-15'
+  // Không có room_id
+});
 
-### Not Available (Planned):
-- ❌ **List customers** - GET /api/v1/customers
-- ❌ **Get customer by ID** - GET /api/v1/customers/:id
-- ❌ **Update customer** - PATCH /api/v1/customers/:id
-- ❌ **Delete customer** - DELETE /api/v1/customers/:id
-- ❌ **Search customers** - GET /api/v1/customers?search=...
-- ❌ **Filter by room/apartment** - GET /api/v1/customers?room_id=...
+console.log('Customer created:', customer.name);
+
+// Step 2: Assign room later
+const roomId = '673room001...';
+await customerService.assignRoom(customer._id, roomId);
+console.log('Room assigned!');
+```
 
 ---
 
-## 2. Known Issues
+## Use Case 3: Move Customer to Different Room
 
-### Issue 1: No Response Body
-**Problem:** Endpoint không return response body khi thành công  
-**Workaround:** Check HTTP status code 200
+**Scenario:** Khách hàng chuyển từ phòng này sang phòng khác.
 
 ```javascript
-if (response.status === 200) {
-  // Success
+const moveCustomer = async (customerId, newRoomId) => {
+  try {
+    const customer = await customerService.getById(customerId);
+    const oldRoom = customer.room_id?.code || 'no room';
+    
+    const updated = await customerService.assignRoom(customerId, newRoomId);
+    const newRoom = updated.room_id?.code;
+    
+    console.log(`Moved customer from ${oldRoom} to ${newRoom}`);
+    return updated;
+  } catch (error) {
+    console.error('Error moving customer:', error);
+    throw error;
+  }
+};
+```
+
+---
+
+## Use Case 4: Bulk Assign Customers to Rooms
+
+**Scenario:** Gán nhiều customers vào các phòng khác nhau.
+
+```javascript
+const bulkAssignRooms = async (assignments) => {
+  // assignments = [{ customerId, roomId }, ...]
+  const results = {
+    success: [],
+    failed: []
+  };
+
+  for (const { customerId, roomId } of assignments) {
+    try {
+      const customer = await customerService.assignRoom(customerId, roomId);
+      results.success.push({ customerId, customer });
+    } catch (error) {
+      results.failed.push({ customerId, error: error.message });
+    }
+  }
+
+  console.log(`Success: ${results.success.length}, Failed: ${results.failed.length}`);
+  return results;
+};
+
+// Usage
+await bulkAssignRooms([
+  { customerId: 'customer1', roomId: 'room1' },
+  { customerId: 'customer2', roomId: 'room2' },
+  { customerId: 'customer3', roomId: 'room3' }
+]);
+```
+
+---
+
+## Use Case 5: Find Customers Without Room
+
+**Scenario:** Tìm tất cả customers chưa có phòng để gán.
+
+```javascript
+const getCustomersWithoutRoom = async () => {
+  const allCustomers = await customerService.getAll({ limit: 1000 });
+  
+  // Filter customers without room
+  const customersWithoutRoom = allCustomers.customers.filter(
+    customer => !customer.room_id
+  );
+  
+  return customersWithoutRoom;
+};
+
+// Usage
+const unassignedCustomers = await getCustomersWithoutRoom();
+console.log(`Found ${unassignedCustomers.length} customers without room`);
+```
+
+---
+
+## Use Case 6: Customer Registration Wizard
+
+**Scenario:** Multi-step form để tạo customer và gán phòng.
+
+```javascript
+function CustomerRegistrationWizard() {
+  const [step, setStep] = useState(1);
+  const [customerData, setCustomerData] = useState({
+    uuid: `user_${Date.now()}`,
+    name: '',
+    phone: '',
+    dob: ''
+  });
+  const [createdCustomer, setCreatedCustomer] = useState(null);
+  const [roomId, setRoomId] = useState('');
+
+  // Step 1: Create customer
+  const handleStep1 = async (e) => {
+    e.preventDefault();
+    try {
+      const customer = await customerService.create(customerData);
+      setCreatedCustomer(customer);
+      setStep(2);
+    } catch (error) {
+      alert('Lỗi: ' + error.message);
+    }
+  };
+
+  // Step 2: Assign room (optional)
+  const handleStep2 = async () => {
+    if (!roomId) {
+      // Skip room assignment
+      alert('Đã tạo khách hàng. Có thể gán phòng sau!');
+      return;
+    }
+
+    try {
+      await customerService.assignRoom(createdCustomer._id, roomId);
+      alert('Hoàn tất! Khách hàng đã được gán phòng.');
+      // Reset or redirect
+    } catch (error) {
+      alert('Lỗi gán phòng: ' + error.message);
+    }
+  };
+
+  return (
+    <div className="wizard">
+      {step === 1 && (
+        <form onSubmit={handleStep1}>
+          <h2>Bước 1: Thông tin khách hàng</h2>
+          {/* Customer form fields */}
+          <button type="submit">Tiếp theo</button>
+        </form>
+      )}
+
+      {step === 2 && (
+        <div>
+          <h2>Bước 2: Gán phòng (Tùy chọn)</h2>
+          <p>Khách hàng: {createdCustomer.name}</p>
+          
+          <RoomSelect value={roomId} onChange={setRoomId} />
+          
+          <button onClick={handleStep2}>
+            {roomId ? 'Hoàn tất' : 'Bỏ qua (gán sau)'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 ```
 
-### Issue 2: UUID Must Be Unique
-**Problem:** UUID phải unique, không thể trùng  
-**Solution:** 
-- Generate unique UUID: `user_${Date.now()}_${Math.random()}`
-- Hoặc dùng Zalo user ID (đã unique)
+---
+
+# ⚠️ Important Notes
+
+## 1. Room Assignment Logic
+
+### Auto-apartment Assignment:
+- Nếu chỉ cung cấp `room_id`, hệ thống tự động lấy `apartment_id` từ room
+- Không cần cung cấp `apartment_id` khi có `room_id`
+
+### Validation:
+- Nếu cung cấp cả `room_id` và `apartment_id`, hệ thống validate room thuộc apartment đó
+- Nếu không match → Error 400
 
 ---
 
-## 3. Data Relationships
+## 2. UUID Uniqueness
+
+- `uuid` phải unique trong toàn hệ thống
+- Nếu trùng → Error 400
+- **Recommendation:** Dùng Zalo user ID hoặc generate unique string
+
+---
+
+## 3. Best Practices
+
+### ✅ DO:
+- **One-step:** Tạo customer với room nếu đã biết phòng
+- **Two-step:** Tạo customer trước, gán phòng sau nếu chưa biết
+- Validate UUID trước khi tạo
+- Check room tồn tại trước khi assign
+- Show clear messages (assigned vs moved)
+- Handle customers without room gracefully
+
+### ❌ DON'T:
+- Hardcode UUIDs
+- Skip validation
+- Ignore errors
+- Create duplicate UUIDs
+- Assume customer always has room
+
+---
+
+## 4. Data Relationships
 
 ```
-Apartment (1) ------> (N) Room
+Customer (N) ------> (1) Room
                          |
                          |
                          v
-                    Customer (N)
+                    Apartment (1)
 ```
 
-- Một Apartment có nhiều Rooms
+- Một Customer thuộc về một Room (hoặc null)
 - Một Room có nhiều Customers
-- Customer phải thuộc về một Room và một Apartment
+- Một Room thuộc về một Apartment
+- Customer có thể không có Room (room_id = null)
 
 ---
 
-## 4. Best Practices
+## 5. Filtering Customers
 
-### ✅ DO:
-- Validate tất cả fields trước khi submit
-- Generate unique UUID nếu không có Zalo ID
-- Check room và apartment tồn tại trước khi register
-- Handle duplicate UUID error gracefully
-- Show clear error messages
-- Confirm trước khi submit (nếu cần)
-
-### ❌ DON'T:
-- Submit form nhiều lần (disable button khi loading)
-- Hardcode UUID
-- Skip validation
-- Ignore error responses
-- Allow empty required fields
-
----
-
-## 5. UUID Generation
-
-### Option 1: Timestamp-based
+### By Room:
 ```javascript
-const uuid = `user_${Date.now()}`;
+GET /api/v1/customers?room_id=673room001...
 ```
 
-### Option 2: Random
+### By Apartment:
 ```javascript
-const uuid = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+GET /api/v1/customers?apartment_id=673apt001...
 ```
 
-### Option 3: UUID Library
+### Without Room:
 ```javascript
-import { v4 as uuidv4 } from 'uuid';
-const uuid = uuidv4();
+// Get all customers
+const all = await customerService.getAll({ limit: 1000 });
+const withoutRoom = all.customers.filter(c => !c.room_id);
 ```
-
-### Option 4: Zalo User ID
-```javascript
-const uuid = zaloUser.id; // From Zalo integration
-```
-
----
-
-# 🔮 Planned Features
-
-## Coming Soon:
-
-### Full CRUD APIs:
-- ✅ `POST /api/v1/customers` - Create customer (new endpoint)
-- ⏭️ `GET /api/v1/customers` - List all customers
-- ⏭️ `GET /api/v1/customers/:id` - Get customer by ID
-- ⏭️ `PATCH /api/v1/customers/:id` - Update customer
-- ⏭️ `DELETE /api/v1/customers/:id` - Delete customer
-
-### Advanced Features:
-- ⏭️ Search customers by name/phone
-- ⏭️ Filter by room/apartment
-- ⏭️ Pagination
-- ⏭️ Sort by name/created date
-- ⏭️ Export customers to Excel
-- ⏭️ Bulk operations
 
 ---
 
 # 🆘 Troubleshooting
 
-## Issue 1: "Missing required fields"
-**Cause:** Thiếu một trong các fields bắt buộc  
-**Solution:** Check tất cả fields: uuid, name, phone, dob, room_id, apartment_id
-
-```javascript
-// Validate before submit
-const required = ['uuid', 'name', 'phone', 'dob', 'room_id', 'apartment_id'];
-const missing = required.filter(field => !customerData[field]);
-if (missing.length > 0) {
-  throw new Error(`Missing: ${missing.join(', ')}`);
-}
-```
-
----
-
-## Issue 2: "Customer with this UUID already exists"
+## Issue 1: "Customer with this UUID already exists"
 **Cause:** UUID đã được sử dụng  
-**Solution:** 
-- Generate UUID mới
-- Hoặc check UUID trước khi submit (nếu có API check)
-
-```javascript
-// Generate new UUID
-const newUuid = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-```
-
----
-
-## Issue 3: No response after successful registration
-**Cause:** Endpoint không return response body (known bug)  
-**Solution:** Check HTTP status code
-
-```javascript
-if (response.status === 200) {
-  // Success, even if body is empty
-}
-```
-
----
-
-## Issue 4: Room/Apartment not found
-**Cause:** room_id hoặc apartment_id không hợp lệ  
 **Solution:**
-- Verify IDs từ GET /apartments và GET /rooms
-- Check IDs có đúng format ObjectId không
-- Ensure apartment và room tồn tại
+- Generate UUID mới
+- Check existing customers trước khi tạo
+- Dùng Zalo user ID (đã unique)
+
+---
+
+## Issue 2: "Room not found"
+**Cause:** `room_id` không hợp lệ hoặc đã bị xóa  
+**Solution:**
+- Verify room tồn tại: GET /rooms
+- Check room_id format (ObjectId)
+- Ensure room chưa bị xóa
+
+---
+
+## Issue 3: "Room does not belong to the specified apartment"
+**Cause:** Room không thuộc apartment được chỉ định  
+**Solution:**
+- Chỉ cung cấp `room_id` (apartment_id sẽ auto-set)
+- Hoặc verify room thuộc apartment trước khi tạo
+
+---
+
+## Issue 4: Customer không có phòng sau khi tạo
+**Cause:** Đây là behavior bình thường nếu không cung cấp `room_id`  
+**Solution:**
+- Đây không phải lỗi - customer có thể tồn tại không có phòng
+- Dùng `POST /customers/:id/assign-room` để gán phòng sau
 
 ---
 
 # 📝 Summary
 
-## Current Endpoint:
+## Endpoints:
 
-| Method | Endpoint | Purpose | Status |
-|--------|----------|---------|--------|
-| POST | `/api/v1/rooms/register` | Create customer | ✅ Working |
+| Method | Endpoint | Purpose | UX |
+|--------|----------|---------|-----|
+| GET | `/api/v1/customers` | List với filters | ✅ |
+| GET | `/api/v1/customers/:id` | Get by ID | ✅ |
+| POST | `/api/v1/customers` | Create (room optional) | ✅ Flexible |
+| PATCH | `/api/v1/customers/:id` | Update info | ✅ |
+| POST | `/api/v1/customers/:id/assign-room` | Assign/Change room | ✅ Clear intent |
+| DELETE | `/api/v1/customers/:id` | Delete | ✅ |
 
-## Features:
-- ✅ Create customer
-- ✅ UUID uniqueness validation
-- ✅ Required fields validation
-- ⚠️ No response body (bug)
-
-## Still Need:
-- ⏭️ Full CRUD operations
-- ⏭️ List/Search customers
-- ⏭️ Update customer info
-- ⏭️ Delete customer
-- ⏭️ Response body fix
-
----
-
-# 📞 Support
-
-Nếu có vấn đề:
-1. Check server logs
-2. Verify MongoDB connection
-3. Test bằng Swagger: `http://localhost:3321/api/v1/docs/`
-4. Contact backend team
+## Key Features:
+- ✅ Flexible room assignment (one-step or two-step)
+- ✅ Auto apartment assignment from room
+- ✅ Clear assign vs move messages
+- ✅ Full CRUD operations
+- ✅ Search, filter, pagination
+- ✅ Populate room & apartment info
 
 ---
 
 **Last Updated:** November 14, 2025  
 **API Version:** 1.0  
-**Status:** Partial (Create only)
-
+**Status:** Production Ready
