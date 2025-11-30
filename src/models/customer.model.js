@@ -5,8 +5,8 @@ const customerSchema = new mongoose.Schema({
     name: { type: String, required: true },
     phone: { type: String },
     dob: { type: Date },
-    room_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Room', required: true },
-    apartment_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Apartment', required: true },
+    room_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Room' }, // Optional - can be assigned later
+    apartment_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Apartment' }, // Optional - auto-set from room
 }, {
     timestamps: true,
 });
