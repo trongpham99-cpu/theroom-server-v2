@@ -1,23 +1,24 @@
 const mongoose = require('mongoose');
 
-const invoiceSchema = new mongoose.Schema({
+const invoiceSchema = new mongoose.Schema(
+  {
     room_code: { type: String },
 
     /** Customer Info */
     customer_name: { type: String },
     gender: {
-        type: String,
-        enum: ['Nam', 'Nữ', 'N/A'],
-        default: 'Nam',
+      type: String,
+      enum: ['Nam', 'Nữ', 'N/A'],
+      default: 'Nam',
     },
     birth_date: { type: Date },
     phone: { type: String, required: true },
 
     /** Hợp đồng */
     contract: {
-        start_date: { type: Date }, // ngày vào
-        end_date: { type: Date },   // ngày hết hạn
-        duration_months: { type: Number }, // kỳ hạn HD
+      start_date: { type: Date }, // ngày vào
+      end_date: { type: Date }, // ngày hết hạn
+      duration_months: { type: Number }, // kỳ hạn HD
     },
 
     /** Tiền cọc */
@@ -30,11 +31,11 @@ const invoiceSchema = new mongoose.Schema({
 
     /** Điện */
     electricity: {
-        old_index: { type: Number },
-        new_index: { type: Number },
-        used_kwh: { type: Number },
-        price: { type: Number },
-        staff: { type: String }, // nếu muốn sau này ghi ai ghi điện
+      old_index: { type: Number },
+      new_index: { type: Number },
+      used_kwh: { type: Number },
+      price: { type: Number },
+      staff: { type: String }, // nếu muốn sau này ghi ai ghi điện
     },
 
     /** Nước và phí quản lý */
@@ -55,9 +56,9 @@ const invoiceSchema = new mongoose.Schema({
 
     /** Trạng thái hóa đơn */
     invoice_status: {
-        type: Number,
-        enum: [1, 2, 3, 4], // 1: pending, 2: sent, 3: paid, 4: failed
-        default: 1,
+      type: Number,
+      enum: [1, 2, 3, 4], // 1: pending, 2: sent, 3: paid, 4: failed
+      default: 1,
     },
     invoice_message: { type: String, default: null },
 
@@ -67,14 +68,16 @@ const invoiceSchema = new mongoose.Schema({
 
     /** Lịch sử */
     history: [
-        {
-            status: { type: Number },
-            message: { type: String },
-            created_at: { type: Date, default: Date.now },
-        },
+      {
+        status: { type: Number },
+        message: { type: String },
+        created_at: { type: Date, default: Date.now },
+      },
     ],
-}, {
+  },
+  {
     timestamps: true,
-});
+  }
+);
 
 module.exports = mongoose.model('Invoice', invoiceSchema);

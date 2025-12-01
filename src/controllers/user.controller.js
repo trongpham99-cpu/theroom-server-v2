@@ -15,7 +15,6 @@ const getUsers = catchAsync(async (req, res) => {
   const options = pick(req.query, ['sortBy', 'limit', 'page']);
   const result = await userService.queryUsers(filter, options);
 
-  // Extract pagination info
   const { results, page, limit, totalPages, totalResults } = result;
 
   responseHandler.paginated(res, results, { page, limit, totalPages, totalResults }, 'Users retrieved successfully');
