@@ -1,23 +1,57 @@
 const Invoice = require('../models/invoice.model');
-const { fetchSheetData } = require('../services/excel');
-const { sendZNS } = require('../services/zalo');
+const { fetchSheetData } = require('../services/excel.service');
+//const { sendZNS } = require('../services/zalo.service');
 
-const redisClient = require('../configs/redis');
+//const redisClient = require('../configs/redis');
 
 exports.listInvoices = async (req, res) => {
-    const { page = 1, limit = 10, sortBy, sortOrder, search } = req.query;
+    const { page = 1, limit = 10, sortBy, sortOrder, search, month, year, excludeRecent } = req.query;
 
     let query = {};
 
+    // Filter by month and year if provided
+    if (month && year) {
+        query.month = parseInt(month, 10);
+        query.year = parseInt(year, 10);
+    }
+
+    // Exclude current month and last month if excludeRecent is true
+    if (excludeRecent === 'true') {
+        const now = new Date();
+        const currentMonth = now.getMonth() + 1;
+        const currentYear = now.getFullYear();
+
+        // Calculate last month
+        const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lastMonth = lastMonthDate.getMonth() + 1;
+        const lastYear = lastMonthDate.getFullYear();
+
+        // Exclude current and last month
+        query.$and = [
+            {
+                $or: [
+                    { year: { $lt: lastYear } },
+                    {
+                        year: lastYear,
+                        month: { $lt: lastMonth }
+                    }
+                ]
+            }
+        ];
+    }
+
     if (search) {
         const regex = new RegExp(search, 'i');
-        query = {
+        if (!query.$and) {
+            query.$and = [];
+        }
+        query.$and.push({
             $or: [
-                { customerName: regex },
+                { customer_name: regex },
                 { phone: regex },
-                { roomCode: regex },
-            ],
-        };
+                { room_code: regex },
+            ]
+        });
     }
 
     const sort = {};

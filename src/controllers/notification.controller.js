@@ -3,9 +3,9 @@ const roomModel = require('../models/room.model');
 const customerModel = require('../models/customer.model');
 const apartmentModel = require('../models/apartment.model');
 
-const { sendTransactionMessage } = require('../services/zalo');
+//const { sendTransactionMessage } = require('../services/zalo');
 
-const { notificationTemplate } = require('../consts');
+//const { notificationTemplate } = require('../consts');
 
 exports.createNotification = async (req, res) => {
     try {

@@ -12,10 +12,8 @@ const notificationSchema = new mongoose.Schema({
         ref: 'Apartment',
     }],
     logs: [{
-        customer_name: { type: String },
-        customer_phone: { type: String },
-        message: { type: String },
-        result: { type: String },
+        type: Object,
+        default: {},
     }]
 }, {
     timestamps: true,
