@@ -19,6 +19,7 @@
     "coverage:coveralls": "jest -i --coverage --coverageReporters=text-lcov | coveralls",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "lint:check": "eslint . --max-warnings=0",
     "prettier": "prettier --check **/*.js",
     "prettier:fix": "prettier --write **/*.js",
     "docker:prod": "docker-compose -f docker-compose.yml -f docker-compose.prod.yml up",
@@ -92,5 +93,11 @@
     "nodemon": "^2.0.0",
     "prettier": "^2.0.5",
     "supertest": "^6.0.1"
+  },
+  "lint-staged": {
+    "*.js": [
+      "eslint --max-warnings=0",
+      "prettier --write"
+    ]
   }
 }

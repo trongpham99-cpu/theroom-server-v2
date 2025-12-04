@@ -7,6 +7,7 @@ const apartmentSchema = new mongoose.Schema({
     description: { type: String, default: '' },
 }, {
     timestamps: true,
-});
+  }
+);
 
 module.exports = mongoose.model('Apartment', apartmentSchema);
