@@ -5,9 +5,14 @@ const { fetchSheetData } = require('../services/excel.service');
 //const redisClient = require('../configs/redis');
 
 exports.listInvoices = async (req, res) => {
-    const { page = 1, limit = 10, sortBy, sortOrder, search, month, year, excludeRecent } = req.query;
+    const { page = 1, limit = 10, sortBy, sortOrder, search, month, year, excludeRecent, apartmentId } = req.query;
 
     let query = {};
+
+    // Filter by apartment if provided
+    if (apartmentId) {
+        query.apartment_code = apartmentId;
+    }
 
     // Filter by month and year if provided
     if (month && year) {
@@ -101,6 +106,7 @@ exports.createInvoice = async (req, res) => {
     try {
         const {
             room_code,
+            apartment_code,
             customer_name,
             gender = 'Nam',
             birth_date,
@@ -131,6 +137,7 @@ exports.createInvoice = async (req, res) => {
 
         const invoice = await Invoice.create({
             room_code,
+            apartment_code,
             customer_name,
             gender,
             birth_date,
