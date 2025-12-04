@@ -1,7 +1,10 @@
 const mongoose = require('mongoose');
 
 const apartmentSchema = new mongoose.Schema({
-    code: { type: String, required: true, unique: true },
+    name: { type: String, default: '' },
+    code: { type: String, default: '', unique: true },
+    address: { type: String, default: '' },
+    description: { type: String, default: '' },
 }, {
     timestamps: true,
 });

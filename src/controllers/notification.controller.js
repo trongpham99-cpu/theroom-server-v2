@@ -3,9 +3,22 @@ const roomModel = require('../models/room.model');
 const customerModel = require('../models/customer.model');
 const apartmentModel = require('../models/apartment.model');
 
-//const { sendTransactionMessage } = require('../services/zalo');
+// Temporary mock functions - replace with real implementation when ready
+const sendTransactionMessage = async (uuid, payload) => {
+    console.log('Mock: sendTransactionMessage', uuid, payload);
+    return { message: 'Mock: Message sent successfully' };
+};
 
-//const { notificationTemplate } = require('../consts');
+const sendPromotionMessage = async (uuid, payload) => {
+    console.log('Mock: sendPromotionMessage', uuid, payload);
+    return { message: 'Mock: Promotion sent successfully' };
+};
+
+const notificationTemplate = ({ title, content, customer }) => ({
+    title,
+    content,
+    customer
+});
 
 exports.createNotification = async (req, res) => {
     try {
@@ -15,9 +28,9 @@ exports.createNotification = async (req, res) => {
             templateData = {},
         } = req.body;
         const { notification_title, notification_body } = templateData;
+        const responseLogs = [];
 
         if (apartmentIds.length) {
-            const responseLogs = [];
             for (const apartmentId of apartmentIds) {
 
                 const apartment = await apartmentModel.findById(apartmentId);
@@ -138,6 +151,57 @@ exports.createNotification = async (req, res) => {
             return res.status(200).json({
                 status: 'success',
                 message: 'Notifications sent successfully to rooms',
+                data: notification
+            });
+        }
+
+        // If no apartments or rooms specified, send to all customers
+        if (!apartmentIds.length && !roomIds.length) {
+            const customers = await customerModel.find()
+                .populate('room_id')
+                .populate('apartment_id');
+
+            for (const customer of customers) {
+                const { uuid, name } = customer;
+                let newPhone = customer.phone;
+                if (newPhone && newPhone.startsWith('0')) {
+                    newPhone = `84${newPhone.slice(1)}`;
+                }
+
+                const personalizedPayload = notificationTemplate({
+                    title: notification_title,
+                    content: notification_body,
+                    customer: {
+                        name: name || 'Quý khách',
+                        apartment_code: customer.apartment_id?.code || 'Chưa cập nhật',
+                        room_code: customer.room_id?.code || 'Chưa cập nhật',
+                        phone: newPhone,
+                    },
+                });
+
+                const result = await sendTransactionMessage(uuid, personalizedPayload);
+                console.log(`Gửi thông báo đến ${newPhone} - Tiêu đề: ${notification_title}`);
+                responseLogs.push({
+                    customer_name: name || 'Khách hàng',
+                    customer_phone: newPhone,
+                    message: `Gửi thông báo thành công đến ${name || 'khách hàng'} ${newPhone}`,
+                    result: result.message || 'Gửi thành công',
+                });
+            }
+
+            const notificationLog = new notificationModel({
+                title: notification_title,
+                content: notification_body,
+                apartment_ids: [],
+                room_ids: [],
+                logs: responseLogs,
+            });
+            const newLog = await notificationLog.save();
+            const notification = await notificationModel.findById(newLog._id);
+
+            return res.status(200).json({
+                status: 'success',
+                message: 'Notifications sent successfully to all customers',
                 data: notification
             });
         }

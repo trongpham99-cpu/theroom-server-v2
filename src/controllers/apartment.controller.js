@@ -23,29 +23,55 @@ exports.listApartments = async (req, res) => {
     }
 };
 
-exports.createApartment = async (req, res) => {
+exports.getApartment = async (req, res) => {
     try {
-        const { code } = req.body;
+        const { id } = req.params;
 
-        // Validate
-        if (!code) {
-            return res.status(400).json({
+        const apartment = await Apartment.findById(id);
+        if (!apartment) {
+            return res.status(404).json({
                 status: 'fail',
-                message: 'Apartment code is required'
+                message: 'Apartment not found'
             });
         }
 
-        // Check if code already exists
-        const existingApartment = await Apartment.findOne({ code });
-        if (existingApartment) {
-            return res.status(400).json({
-                status: 'fail',
-                message: 'Apartment code already exists'
-            });
+        return res.status(200).json({
+            status: 'success',
+            message: 'Apartment retrieved successfully',
+            data: apartment
+        });
+    } catch (error) {
+        console.error('Error getting apartment:', error);
+        return res.status(500).json({
+            status: 'error',
+            message: 'Internal server error',
+            error: error.message
+        });
+    }
+};
+
+exports.createApartment = async (req, res) => {
+    try {
+        const { name, code, address, description } = req.body;
+
+        // Check if code already exists (only if code is provided)
+        if (code) {
+            const existingApartment = await Apartment.findOne({ code });
+            if (existingApartment) {
+                return res.status(400).json({
+                    status: 'fail',
+                    message: 'Apartment code already exists'
+                });
+            }
         }
 
         // Create apartment
-        const apartment = await Apartment.create({ code });
+        const apartment = await Apartment.create({
+            name: name || '',
+            code: code || '',
+            address: address || '',
+            description: description || ''
+        });
 
         return res.status(201).json({
             status: 'success',
@@ -65,7 +91,7 @@ exports.createApartment = async (req, res) => {
 exports.updateApartment = async (req, res) => {
     try {
         const { id } = req.params;
-        const { code } = req.body;
+        const { name, code, address, description } = req.body;
 
         // Check if apartment exists
         const apartment = await Apartment.findById(id);
@@ -76,25 +102,22 @@ exports.updateApartment = async (req, res) => {
             });
         }
 
-        // Validate
-        if (!code) {
-            return res.status(400).json({
-                status: 'fail',
-                message: 'Apartment code is required'
-            });
-        }
-
         // Check if new code already exists (and not the same apartment)
-        const existingApartment = await Apartment.findOne({ code, _id: { $ne: id } });
-        if (existingApartment) {
-            return res.status(400).json({
-                status: 'fail',
-                message: 'Apartment code already exists'
-            });
+        if (code && code !== apartment.code) {
+            const existingApartment = await Apartment.findOne({ code, _id: { $ne: id } });
+            if (existingApartment) {
+                return res.status(400).json({
+                    status: 'fail',
+                    message: 'Apartment code already exists'
+                });
+            }
         }
 
-        // Update apartment
-        apartment.code = code;
+        // Update apartment - only update fields that are provided
+        if (name !== undefined) apartment.name = name;
+        if (code !== undefined) apartment.code = code;
+        if (address !== undefined) apartment.address = address;
+        if (description !== undefined) apartment.description = description;
         await apartment.save();
 
         return res.status(200).json({

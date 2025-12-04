@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const invoiceSchema = new mongoose.Schema({
     room_code: { type: String },
+    apartment_code: { type: String },
 
     /** Customer Info */
     customer_name: { type: String },

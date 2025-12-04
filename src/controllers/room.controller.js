@@ -25,6 +25,33 @@ exports.listRooms = async (req, res) => {
     }
 };
 
+exports.getRoom = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const room = await Room.findById(id);
+        if (!room) {
+            return res.status(404).json({
+                status: 'fail',
+                message: 'Room not found'
+            });
+        }
+
+        return res.status(200).json({
+            status: 'success',
+            message: 'Room retrieved successfully',
+            data: room
+        });
+    } catch (error) {
+        console.error('Error getting room:', error);
+        return res.status(500).json({
+            status: 'error',
+            message: 'Internal server error',
+            error: error.message
+        });
+    }
+};
+
 exports.createRoom = async (req, res) => {
     try {
         const { code, apartment_id } = req.body;
